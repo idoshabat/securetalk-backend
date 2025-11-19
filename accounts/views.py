@@ -55,13 +55,22 @@ class ChatHistoryView(APIView):
 
     def get(self, request, username):
         other_user = User.objects.get(username=username)
+
         messages = Message.objects.filter(
             sender__in=[request.user, other_user],
             receiver__in=[request.user, other_user]
         ).order_by("timestamp")
 
+        # Mark messages from other_user as read
+        Message.objects.filter(
+            sender=other_user,
+            receiver=request.user,
+            is_read=False
+        ).update(is_read=True)
+
         serializer = MessageSerializer(messages, many=True)
         return Response(serializer.data)
+
     
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -92,3 +101,58 @@ def messages_view(request, username):
 
 
     return Response(messages_data)
+
+
+class ChatListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        # All messages where the user is sender OR receiver
+        messages = Message.objects.filter(
+            Q(sender=user) | Q(receiver=user)
+        )
+
+        # Collect chat partner IDs
+        partner_ids = set()
+        for m in messages:
+            if m.sender_id != user.id:
+                partner_ids.add(m.sender_id)
+            if m.receiver_id != user.id:
+                partner_ids.add(m.receiver_id)
+
+        partners = User.objects.filter(id__in=partner_ids)
+        chat_list = []
+
+        for partner in partners:
+            # last message between the two
+            last_message = Message.objects.filter(
+                (Q(sender=user) & Q(receiver=partner)) |
+                (Q(sender=partner) & Q(receiver=user))
+            ).order_by('-timestamp').first()
+
+            # COUNT unread
+            unread = Message.objects.filter(
+                sender=partner,
+                receiver=user,
+                is_read=False
+            ).count()
+
+            chat_list.append({
+                "id": partner.id,
+                "username": partner.username,
+                "last_message": last_message.content if last_message else "",
+                "last_message_timestamp": last_message.timestamp.isoformat() if last_message else None,
+                "unread": unread,
+            })
+
+        # Sort chats by last message
+        chat_list.sort(
+            key=lambda x: x["last_message_timestamp"] or "",
+            reverse=True
+        )
+
+        return Response(chat_list)
+
+
