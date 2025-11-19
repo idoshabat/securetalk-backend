@@ -13,6 +13,7 @@ from django.db.models import Q
 
 class SignupView(APIView):
     def post(self, request):
+        print("Signup request data:", request.data)
         serializer = SignupSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
