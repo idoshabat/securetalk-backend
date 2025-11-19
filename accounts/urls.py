@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import ChatHistoryView, ProfileView, SignupView, messages_view , ProfileDetailView , ChatListView
+from .views import ChatHistoryView, ProfileView, SignupView, messages_view , ProfileDetailView , ChatListView, mark_seen
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 urlpatterns = [
@@ -10,5 +10,6 @@ urlpatterns = [
     path('profile/<str:username>/', ProfileDetailView.as_view(), name='profile-detail'),
     # path("messages/<str:username>/", ChatHistoryView.as_view()),
     path("messages/<str:username>/", messages_view),
+    path("messages/<int:message_id>/mark_seen/", mark_seen, name="mark-seen"),
     path("chats/", ChatListView.as_view(), name="chat-list"),
 ]
