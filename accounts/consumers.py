@@ -1,4 +1,3 @@
-# consumers.py
 from channels.generic.websocket import AsyncWebsocketConsumer
 import json
 
@@ -54,10 +53,38 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
 
     async def receive(self, text_data):
+        data = json.loads(text_data)
+        print("Received data:", data)
+
+        # typing start
+        if data.get("type") == "typing":
+            print("Typing event detected")
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "typing_event",
+                    "username": self.sender.username,
+                    "typing": True
+                }
+            )
+            return
+
+        # typing stop
+        if data.get("type") == "stop_typing":
+            print("Stop typing event detected")
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "typing_event",
+                    "username": self.sender.username,
+                    "typing": False
+                }
+            )
+            return
+
         from channels.db import database_sync_to_async
         from .models import Message
 
-        data = json.loads(text_data)
         message_content = data['message']
         temp_id = data.get("tempId")
 
@@ -90,7 +117,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             }
         )
 
-        # If receiver is active, also broadcast read_receipt immediately
+        # If receiver is active, broadcast read receipt
         if initial_status == "seen":
             await self.channel_layer.group_send(
                 self.room_group_name,
@@ -102,7 +129,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
 
     async def chat_message(self, event):
-        # send message to WebSocket
         await self.send(text_data=json.dumps({
             "id": event["id"],
             "message": event["message"],
@@ -114,9 +140,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
         }))
 
     async def read_receipt(self, event):
-        # notify frontend that messages have been seen
         await self.send(text_data=json.dumps({
             "type": "read_receipt",
             "reader": event["reader"],
             "partner": event["partner"]
+        }))
+
+    async def typing_event(self, event):
+        print("Typing event broadcasted:", event)
+        await self.send(text_data=json.dumps({
+            "type": "typing",
+            "username": event["username"],
+            "typing": event["typing"]
         }))
