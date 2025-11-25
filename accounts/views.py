@@ -7,6 +7,10 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.models import User
 from rest_framework.decorators import api_view, permission_classes
 from django.db.models import Q
+from google.oauth2 import id_token
+from google.auth.transport import requests
+from rest_framework_simplejwt.tokens import RefreshToken
+
 
 
 class SignupView(APIView):
@@ -17,23 +21,74 @@ class SignupView(APIView):
             serializer.save()
             return Response({"message": "Signup successful"}, status=drf_status.HTTP_201_CREATED)
         return Response(serializer.errors, status=drf_status.HTTP_400_BAD_REQUEST)
+    
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from django.contrib.auth.models import User
+from rest_framework_simplejwt.tokens import RefreshToken
+from .models import Profile
+from google.oauth2 import id_token
+from google.auth.transport import requests
 
+# GoogleAuthView
+class GoogleAuthView(APIView):
+    def post(self, request):
+        credential = request.data.get("credential") or request.data.get("token")
+        if not credential:
+            return Response({"error": "Missing credential"}, status=400)
+
+        try:
+            id_info = id_token.verify_oauth2_token(
+                credential,
+                requests.Request(),
+                "378605525108-f7dmmcusnt63kj4pvepukt0ui9cpv9oq.apps.googleusercontent.com"
+            )
+            email = id_info["email"]
+
+            # Get or create user
+            user, created = User.objects.get_or_create(username=email, defaults={"email": email})
+            
+            if created:
+                import secrets
+                random_password = secrets.token_urlsafe(16)
+                user.set_password(random_password)
+                user.save()
+
+            # Ensure Profile exists
+            profile, _ = Profile.objects.get_or_create(user=user)
+
+            # Generate JWT
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                "message": "Login successful",
+                "email": email,
+                "is_new": created,
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+            })
+
+        except ValueError as e:
+            return Response({"error": f"Invalid token: {str(e)}"}, status=400)
+        except Exception as e:
+            return Response({"error": f"Unexpected error: {str(e)}"}, status=400)
 
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        profile = Profile.objects.get(user=request.user)
+        # Always get or create Profile
+        profile, _ = Profile.objects.get_or_create(user=request.user)
         serializer = ProfileSerializer(profile)
         return Response(serializer.data)
 
     def patch(self, request):
-        profile = Profile.objects.get(user=request.user)
+        profile, _ = Profile.objects.get_or_create(user=request.user)
         serializer = ProfileSerializer(profile, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=drf_status.HTTP_400_BAD_REQUEST)
+
 
 
 class ProfileDetailView(APIView):

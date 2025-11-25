@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import ChatHistoryView, ProfileView, SignupView, messages_view , ProfileDetailView , ChatListView, mark_seen
+from .views import ChatHistoryView, ProfileView, SignupView, messages_view , ProfileDetailView , ChatListView, mark_seen , GoogleAuthView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 urlpatterns = [
@@ -12,4 +12,6 @@ urlpatterns = [
     path("messages/<str:username>/", messages_view),
     path("messages/<int:message_id>/mark_seen/", mark_seen, name="mark-seen"),
     path("chats/", ChatListView.as_view(), name="chat-list"),
+    path("google-auth/", GoogleAuthView.as_view()),
+
 ]
