@@ -60,6 +60,15 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "https://securetalk-frontend.vercel.app"
 ]
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://securetalk-backend-production.up.railway.app",
+    "https://secure-talk.onrender.com",
+    "https://securetalk-frontend.vercel.app/",
+]
+
+
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
