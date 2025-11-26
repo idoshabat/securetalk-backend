@@ -1,5 +1,8 @@
 from channels.generic.websocket import AsyncWebsocketConsumer
 import json
+import logging
+
+logger = logging.getLogger(__name__)  # Logger for connection issues
 
 active_chats = {}  # Keeps track of active users in each chat
 
@@ -7,29 +10,33 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
         from channels.db import database_sync_to_async
-        from channels.exceptions import DenyConnection
         from django.contrib.auth import get_user_model
         from .models import Message
+        from channels.exceptions import DenyConnection
 
         User = get_user_model()
-        self.sender = self.scope["user"]
-        self.receiver_username = self.scope['url_route']['kwargs']['username']
+        self.sender = self.scope.get("user")
+        self.receiver_username = self.scope['url_route']['kwargs'].get('username')
 
-        # Reject if sender is not authenticated
-        if not self.sender.is_authenticated:
-            raise DenyConnection("Sender not authenticated")
+        if not self.sender or not self.sender.is_authenticated:
+            logger.warning("WebSocket connection denied: sender not authenticated")
+            raise DenyConnection("User not authenticated")
 
-        # Fetch receiver safely
+        if not self.receiver_username:
+            logger.warning("WebSocket connection denied: no receiver username provided")
+            raise DenyConnection("No receiver username provided")
+
         try:
             self.receiver = await database_sync_to_async(User.objects.get)(
                 username=self.receiver_username
             )
         except User.DoesNotExist:
-            raise DenyConnection(f"Receiver '{self.receiver_username}' does not exist")
+            logger.warning(f"WebSocket connection denied: receiver '{self.receiver_username}' does not exist")
+            raise DenyConnection("Receiver does not exist")
 
-        # Ensure both IDs are valid
-        if self.sender.id is None or self.receiver.id is None:
-            raise DenyConnection("Invalid sender or receiver ID")
+        if not self.sender.id or not self.receiver.id:
+            logger.warning(f"WebSocket connection denied: invalid sender or receiver IDs")
+            raise DenyConnection("Invalid IDs for sender or receiver")
 
         # Unique chat room between two users
         self.room_group_name = (
@@ -74,7 +81,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
 
     async def receive(self, text_data):
-        import json
         data = json.loads(text_data)
 
         # ---------------------------------------------------------
@@ -95,7 +101,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return
 
         # ---------------------------------------------------------
-        # READ RECEIPTS
+        # READ RECEIPTS (NEW)
         # ---------------------------------------------------------
         if data.get("type") == "read_messages":
             ids = data.get("ids", [])
@@ -169,6 +175,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     # ---------------------------------------------------------
     # SENDERS FOR EVENTS
     # ---------------------------------------------------------
+
     async def chat_message(self, event):
         await self.send(text_data=json.dumps(event))
 
