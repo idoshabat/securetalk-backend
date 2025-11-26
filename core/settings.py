@@ -100,10 +100,15 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("redis://default:lJhJDjveaYDnVVKMCBOQKRmJGPyBgpdt@ballast.proxy.rlwy.net:56451")],
+            "hosts": ["redis://default:lJhJDjveaYDnVVKMCBOQKRmJGPyBgpdt@ballast.proxy.rlwy.net:56451"],
         },
     },
 }
+
+
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
+
 
 
 
