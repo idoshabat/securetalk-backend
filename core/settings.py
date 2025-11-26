@@ -100,7 +100,7 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("redis://default:<PASSWORD>@<HOST>:<PORT>")],
+            "hosts": [("redis://default:lJhJDjveaYDnVVKMCBOQKRmJGPyBgpdt@ballast.proxy.rlwy.net:56451")],
         },
     },
 }
