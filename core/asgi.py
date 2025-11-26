@@ -9,19 +9,12 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
 # Django ASGI application
 django_asgi_app = get_asgi_application()
 
-import accounts.routing  # your websocket routes
+from accounts.middleware import JWTAuthMiddleware
+import accounts.routing
 
-def get_application():
-    # delayed import to avoid AppRegistryNotReady
-    from accounts.middleware import JWTAuthMiddleware
-    
-    return ProtocolTypeRouter({
-        "http": django_asgi_app,
-        "websocket": JWTAuthMiddleware(
-            URLRouter(
-                accounts.routing.websocket_urlpatterns
-            )
-        ),
-    })
-
-application = get_application()
+application = ProtocolTypeRouter({
+    "http": django_asgi_app,
+    "websocket": JWTAuthMiddleware(
+        URLRouter(accounts.routing.websocket_urlpatterns)
+    ),
+})
