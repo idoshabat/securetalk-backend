@@ -64,7 +64,7 @@ CORS_ALLOWED_ORIGINS = [
 CSRF_TRUSTED_ORIGINS = [
     "https://securetalk-backend-production.up.railway.app",
     "https://secure-talk.onrender.com",
-    "https://securetalk-frontend.vercel.app/",
+    "https://securetalk-frontend.vercel.app",
 ]
 
 
@@ -98,9 +98,13 @@ ASGI_APPLICATION = "core.asgi.application"
 
 CHANNEL_LAYERS = {
     "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer",
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("redis://default:<PASSWORD>@<HOST>:<PORT>")],
+        },
     },
 }
+
 
 
 # Database
