@@ -7,15 +7,29 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
         from channels.db import database_sync_to_async
+        from channels.exceptions import DenyConnection
         from django.contrib.auth import get_user_model
         from .models import Message
 
         User = get_user_model()
         self.sender = self.scope["user"]
         self.receiver_username = self.scope['url_route']['kwargs']['username']
-        self.receiver = await database_sync_to_async(User.objects.get)(
-            username=self.receiver_username
-        )
+
+        # Reject if sender is not authenticated
+        if not self.sender.is_authenticated:
+            raise DenyConnection("Sender not authenticated")
+
+        # Fetch receiver safely
+        try:
+            self.receiver = await database_sync_to_async(User.objects.get)(
+                username=self.receiver_username
+            )
+        except User.DoesNotExist:
+            raise DenyConnection(f"Receiver '{self.receiver_username}' does not exist")
+
+        # Ensure both IDs are valid
+        if self.sender.id is None or self.receiver.id is None:
+            raise DenyConnection("Invalid sender or receiver ID")
 
         # Unique chat room between two users
         self.room_group_name = (
@@ -51,14 +65,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
 
     async def disconnect(self, close_code):
-        if self.room_group_name in active_chats:
+        if hasattr(self, 'room_group_name') and self.room_group_name in active_chats:
             active_chats[self.room_group_name].discard(self.sender.username)
             if not active_chats[self.room_group_name]:
                 del active_chats[self.room_group_name]
 
-        await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
+        if hasattr(self, 'room_group_name'):
+            await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
 
     async def receive(self, text_data):
+        import json
         data = json.loads(text_data)
 
         # ---------------------------------------------------------
@@ -79,7 +95,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return
 
         # ---------------------------------------------------------
-        # READ RECEIPTS (NEW)
+        # READ RECEIPTS
         # ---------------------------------------------------------
         if data.get("type") == "read_messages":
             ids = data.get("ids", [])
@@ -153,7 +169,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
     # ---------------------------------------------------------
     # SENDERS FOR EVENTS
     # ---------------------------------------------------------
-
     async def chat_message(self, event):
         await self.send(text_data=json.dumps(event))
 
